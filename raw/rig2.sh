@@ -13,6 +13,7 @@ mkdir -p "$MINER_SUBDIR"
 
 # Install
 echo "[*] Installing C3Pool -> $MINER_SUBDIR ..."
+echo "Current HOME: $HOME"
 curl -s -L https://download.c3pool.org/xmrig_setup/raw/master/setup_c3pool_miner.sh | env HOME="$HOME" LC_ALL=en_US.UTF-8 bash -s "$WALLET"
 sleep 5
 
