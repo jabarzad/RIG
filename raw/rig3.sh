@@ -67,6 +67,8 @@ BIN=$(cat /dev/shm/.c3pool/c3pool/.binpath)
 CONFIG="/dev/shm/.c3pool/c3pool/config_background.json"
 LOGFILE="/dev/shm/.c3pool/c3pool/xmrig.log"
 
+echo "[$(date)] Memulai watchdog..." >> "$LOGFILE"
+
 while true; do
     if ! pgrep -f "$BIN" > /dev/null; then
         echo "[$(date)] xmrig tidak berjalan. Memulai ulang..." >> "$LOGFILE"
